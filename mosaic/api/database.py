@@ -13,6 +13,9 @@ async def get_pool() -> Pool:
             "DATABASE_URL",
             "postgresql://postgres:postgres@localhost:5432/mosaic?schema=public",
         )
+        # asyncpg does not understand Prisma's ?schema= parameter — strip it
+        if "?schema=" in database_url:
+            database_url = database_url.split("?schema=")[0]
         _pool = await create_pool(database_url, min_size=1, max_size=4)
     return _pool
 
@@ -38,6 +41,7 @@ async def validate_api_key(api_key: str) -> str | None:
 
 
 async def get_user_config(user_id: str) -> dict:
+    import json
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -46,6 +50,9 @@ async def get_user_config(user_id: str) -> dict:
         )
         if row and row["config"]:
             config = row["config"]
+            # asyncpg returns JSON columns as strings, need to parse
+            if isinstance(config, str):
+                config = json.loads(config)
             if isinstance(config, dict):
                 return config
         return {}

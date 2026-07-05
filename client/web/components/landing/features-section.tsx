@@ -81,6 +81,17 @@ function DeployVisual() {
 }
 
 function AIVisual() {
+  // Pre-compute node positions as fixed constants to avoid SSR/client
+  // hydration mismatches from floating-point Math.cos/sin serialization diffs.
+  const nodes = [0, 1, 2, 3, 4, 5].map((i) => {
+    const angle = (i * 60) * (Math.PI / 180);
+    const radius = 50;
+    // Round to 2 decimal places so SSR string and client number match exactly
+    const x = Math.round((100 + Math.cos(angle) * radius) * 100) / 100;
+    const y = Math.round((80 + Math.sin(angle) * radius) * 100) / 100;
+    return { x, y, delay: i * 0.3 };
+  });
+
   return (
     <svg viewBox="0 0 200 160" className="w-full h-full">
       {/* Central node */}
@@ -89,17 +100,14 @@ function AIVisual() {
       </circle>
       
       {/* Orbiting nodes */}
-      {[0, 1, 2, 3, 4, 5].map((i) => {
-        const angle = (i * 60) * (Math.PI / 180);
-        const radius = 50;
-        return (
+      {nodes.map(({ x, y, delay }, i) => (
           <g key={i}>
             {/* Connection line */}
             <line
               x1="100"
               y1="80"
-              x2={100 + Math.cos(angle) * radius}
-              y2={80 + Math.sin(angle) * radius}
+              x2={x}
+              y2={y}
               stroke="currentColor"
               strokeWidth="1"
               opacity="0.3"
@@ -108,15 +116,15 @@ function AIVisual() {
                 attributeName="opacity"
                 values="0.3;0.8;0.3"
                 dur="2s"
-                begin={`${i * 0.3}s`}
+                begin={`${delay}s`}
                 repeatCount="indefinite"
               />
             </line>
             
             {/* Outer node */}
             <circle
-              cx={100 + Math.cos(angle) * radius}
-              cy={80 + Math.sin(angle) * radius}
+              cx={x}
+              cy={y}
               r="6"
               fill="none"
               stroke="currentColor"
@@ -126,13 +134,12 @@ function AIVisual() {
                 attributeName="r"
                 values="6;8;6"
                 dur="2s"
-                begin={`${i * 0.3}s`}
+                begin={`${delay}s`}
                 repeatCount="indefinite"
               />
             </circle>
           </g>
-        );
-      })}
+        ))}
       
       {/* Pulse rings */}
       <circle cx="100" cy="80" r="30" fill="none" stroke="currentColor" strokeWidth="1" opacity="0">

@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: mosaic-mcp
+    ports:
+      - "${MCP_PORT:-8001}:8001"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - MCP_PORT=${MCP_PORT:-8001}
+      - LLM_ENDPOINT=${LLM_ENDPOINT}
+      - LLM_MODEL=${LLM_MODEL}
+      - EMBEDDING_ENDPOINT=${EMBEDDING_ENDPOINT}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL}
+      - STRUCTURED_OUTPUT_FRAMEWORK=${STRUCTURED_OUTPUT_FRAMEWORK}
+      - BAML_API_KEY=${BAML_API_KEY:-}
+      - BAML_ENDPOINT=${BAML_ENDPOINT:-}
+      - BAML_MODEL=${BAML_MODEL:-}
+      - GRAPH_DATABASE_URL=${GRAPH_DATABASE_URL:-}
+      - GRAPH_DATABASE_USERNAME=${GRAPH_DATABASE_USERNAME:-}
+      - GRAPH_DATABASE_PASSWORD=${GRAPH_DATABASE_PASSWORD:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

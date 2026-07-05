@@ -20,13 +20,74 @@ current_user_config: contextvars.ContextVar[dict] = contextvars.ContextVar("user
 
 
 def apply_config(config: dict):
-    """Apply user-specific config as environment overrides then reconfigure Cognee."""
+    """Apply user-specific config as environment overrides then reconfigure Cognee.
+    
+    DEPRECATED: This function modifies global os.environ and causes race conditions.
+    Use _convert_config_to_env() and pass config dicts through the call chain instead.
+    Kept for backward compatibility with ingestion scripts.
+    """
     if not config:
         return
+    
+    # Map user config keys (camelCase from DB) to environment variable names
+    key_mapping = {
+        "githubToken": "GITHUB_TOKEN",
+        "githubRepository": "GITHUB_REPOSITORY",
+        "slackToken": "SLACK_BOT_TOKEN",
+        "slackChannels": "SLACK_CHANNELS",
+        "llmEndpoint": "LLM_ENDPOINT",
+        "llmModel": "LLM_MODEL",
+        "embeddingEndpoint": "EMBEDDING_ENDPOINT",
+        "embeddingModel": "EMBEDDING_MODEL",
+        "neo4jUrl": "GRAPH_DATABASE_URL",
+        "neo4jUsername": "GRAPH_DATABASE_USERNAME",
+        "neo4jPassword": "GRAPH_DATABASE_PASSWORD",
+    }
+    
     for key, value in config.items():
-        if value is not None:
-            os.environ[key.upper()] = str(value)
+        if value is not None and str(value).strip():  # Skip empty strings
+            env_key = key_mapping.get(key, key.upper())
+            os.environ[env_key] = str(value).strip()  # Strip whitespace
+    
     configure_cognee()
+
+
+def _convert_config_to_env(config: dict) -> dict:
+    """Convert user config (camelCase) to environment variable format (SCREAMING_SNAKE_CASE).
+    
+    This creates a new dict without modifying global os.environ, preventing race conditions.
+    
+    Args:
+        config: User config dict with camelCase keys from database.
+        
+    Returns:
+        Dict with SCREAMING_SNAKE_CASE keys suitable for passing to connectors and Cognee.
+    """
+    if not config:
+        return {}
+    
+    # Map user config keys (camelCase from DB) to environment variable names
+    key_mapping = {
+        "githubToken": "GITHUB_TOKEN",
+        "githubRepository": "GITHUB_REPOSITORY",
+        "slackToken": "SLACK_BOT_TOKEN",
+        "slackChannels": "SLACK_CHANNELS",
+        "llmEndpoint": "LLM_ENDPOINT",
+        "llmModel": "LLM_MODEL",
+        "embeddingEndpoint": "EMBEDDING_ENDPOINT",
+        "embeddingModel": "EMBEDDING_MODEL",
+        "neo4jUrl": "GRAPH_DATABASE_URL",
+        "neo4jUsername": "GRAPH_DATABASE_USERNAME",
+        "neo4jPassword": "GRAPH_DATABASE_PASSWORD",
+    }
+    
+    env_config = {}
+    for key, value in config.items():
+        if value is not None and str(value).strip():  # Skip empty strings
+            env_key = key_mapping.get(key, key.upper())
+            env_config[env_key] = str(value).strip()  # Strip whitespace
+    
+    return env_config
 
 
 mcp = FastMCP("mosaic")
@@ -34,32 +95,37 @@ mcp = FastMCP("mosaic")
 
 @mcp.tool(description="General reasoning over engineering memory. Ask about decisions, architecture, history.")
 async def ask(query: str) -> str:
-    apply_config(current_user_config.get())
-    return await handle_ask(query)
+    user_config = current_user_config.get()
+    env_config = _convert_config_to_env(user_config)
+    return await handle_ask(query, config=env_config)
 
 
 @mcp.tool(description="Get everything related to a file, person, or concept in the engineering memory.")
 async def entity(name: str) -> str:
-    apply_config(current_user_config.get())
-    return await handle_entity(name)
+    user_config = current_user_config.get()
+    env_config = _convert_config_to_env(user_config)
+    return await handle_entity(name, config=env_config)
 
 
 @mcp.tool(description="Chronological evolution of a topic, file, or feature.")
 async def timeline(topic: str, limit: int = 50) -> str:
-    apply_config(current_user_config.get())
-    return await handle_timeline(topic, limit)
+    user_config = current_user_config.get()
+    env_config = _convert_config_to_env(user_config)
+    return await handle_timeline(topic, limit, config=env_config)
 
 
 @mcp.tool(description="Find the connected graph around an entity — linked PRs, issues, decisions, files.")
 async def related(entity_id: str, depth: int = 1) -> str:
-    apply_config(current_user_config.get())
-    return await handle_related(entity_id, depth)
+    user_config = current_user_config.get()
+    env_config = _convert_config_to_env(user_config)
+    return await handle_related(entity_id, depth, config=env_config)
 
 
 @mcp.tool(description="Analyze risk, owners, history, and related files before making a change.")
 async def pre_change_analysis(file_path: str) -> str:
-    apply_config(current_user_config.get())
-    return await handle_pre_change_analysis(file_path)
+    user_config = current_user_config.get()
+    env_config = _convert_config_to_env(user_config)
+    return await handle_pre_change_analysis(file_path, config=env_config)
 
 
 def create_app() -> FastAPI:

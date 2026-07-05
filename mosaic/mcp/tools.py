@@ -11,9 +11,16 @@ from mosaic.core.memory.query import (
 
 
 def load_env():
-    env_path = os.path.join(os.getcwd(), ".env")
-    if os.path.exists(env_path):
-        load_dotenv(env_path)
+    # Try local mcp/.env first
+    local_env_path = os.path.join(os.path.dirname(__file__), ".env")
+    if os.path.exists(local_env_path):
+        load_dotenv(local_env_path)
+        return
+    
+    # Fallback to root .env
+    root_env_path = os.path.join(os.getcwd(), ".env")
+    if os.path.exists(root_env_path):
+        load_dotenv(root_env_path)
 
 
 def format_subgraph(data: dict) -> str:
@@ -71,27 +78,42 @@ def format_result(result: dict) -> str:
         return str(data)
 
 
-async def handle_ask(query: str) -> str:
+async def handle_ask(query: str, config: dict | None = None) -> str:
+    """Handle general reasoning query with optional config."""
+    if config:
+        configure_cognee(config)
     result = await cross_source_query(query)
     return format_result(result)
 
 
-async def handle_entity(name: str, source: str = "") -> str:
+async def handle_entity(name: str, source: str = "", config: dict | None = None) -> str:
+    """Get entity by name with optional config."""
+    if config:
+        configure_cognee(config)
     result = await get_entity_by_name(name)
     return format_result(result)
 
 
-async def handle_timeline(topic: str, limit: int = 50) -> str:
+async def handle_timeline(topic: str, limit: int = 50, config: dict | None = None) -> str:
+    """Get timeline for a topic with optional config."""
+    if config:
+        configure_cognee(config)
     result = await get_timeline(topic)
     return format_result(result)
 
 
-async def handle_related(entity_id: str, depth: int = 1) -> str:
+async def handle_related(entity_id: str, depth: int = 1, config: dict | None = None) -> str:
+    """Get related entities with optional config."""
+    if config:
+        configure_cognee(config)
     result = await get_related(entity_id)
     return format_result(result)
 
 
-async def handle_pre_change_analysis(file_path: str) -> str:
+async def handle_pre_change_analysis(file_path: str, config: dict | None = None) -> str:
+    """Analyze file before change with optional config."""
+    if config:
+        configure_cognee(config)
     result = await cross_source_query(
         f"Risk assessment, owners, history, related files, and decisions for {file_path}"
     )

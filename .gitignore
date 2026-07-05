@@ -1,4 +1,7 @@
 discussions
 .env
+mosaic/mcp/.env
 data/
 .data_storage
+tmp
+tests
