@@ -32,47 +32,46 @@ def _get_diff_patch(commit) -> str:
     return ""
 
 
-def fetch_commits(repo: Repository, since: datetime | None = None) -> list[RawCommit]:
+def _to_raw_commit(gh_commit, repo_name: str) -> RawCommit:
+    return RawCommit(
+        sha=gh_commit.sha,
+        message=gh_commit.commit.message,
+        author_login=gh_commit.author.login if gh_commit.author else "unknown",
+        author_name=gh_commit.commit.author.name,
+        author_email=gh_commit.commit.author.email,
+        committed_at=gh_commit.commit.author.date,
+        diff_patch=_get_diff_patch(gh_commit),
+        files_changed=[f.filename for f in (gh_commit.files or [])],
+        repo_name=repo_name,
+    )
+
+
+def fetch_commits(
+    repo: Repository,
+    since: datetime | None = None,
+    max_count: int = 100,
+) -> list[RawCommit]:
     kwargs = {}
     if since:
         kwargs["since"] = since
 
     raw_commits = []
-    for gh_commit in repo.get_commits(**kwargs):
-        raw_commits.append(
-            RawCommit(
-                sha=gh_commit.sha,
-                message=gh_commit.commit.message,
-                author_login=gh_commit.author.login if gh_commit.author else "unknown",
-                author_name=gh_commit.commit.author.name,
-                author_email=gh_commit.commit.author.email,
-                committed_at=gh_commit.commit.author.date,
-                diff_patch=_get_diff_patch(gh_commit),
-                files_changed=[f.filename for f in (gh_commit.files or [])],
-                repo_name=repo.full_name,
-            )
-        )
+    for gh_commit in repo.get_commits(**kwargs)[:max_count]:
+        raw_commits.append(_to_raw_commit(gh_commit, repo.full_name))
     return raw_commits
 
 
-def fetch_pull_requests(repo: Repository, state: str = "all") -> list[RawPullRequest]:
-    raw_prs = []
-    for gh_pr in repo.get_pulls(state=state, sort="updated", direction="desc"):
-        pr_commits = []
-        for gh_commit in gh_pr.get_commits():
-            pr_commits.append(
-                RawCommit(
-                    sha=gh_commit.sha,
-                    message=gh_commit.commit.message,
-                    author_login=gh_commit.author.login if gh_commit.author else "unknown",
-                    author_name=gh_commit.commit.author.name,
-                    author_email=gh_commit.commit.author.email,
-                    committed_at=gh_commit.commit.author.date,
-                    diff_patch=_get_diff_patch(gh_commit),
-                    files_changed=[f.filename for f in (gh_commit.files or [])],
-                    repo_name=repo.full_name,
-                )
-            )
+def fetch_pull_requests(
+    repo: Repository,
+    state: str = "all",
+    max_count: int = 50,
+) -> tuple[list[RawPullRequest], list[GhPullRequest]]:
+    raw_prs: list[RawPullRequest] = []
+    gh_prs: list[GhPullRequest] = []
+
+    for gh_pr in repo.get_pulls(state=state, sort="updated", direction="desc")[:max_count]:
+        gh_prs.append(gh_pr)
+        pr_commits = [_to_raw_commit(c, repo.full_name) for c in gh_pr.get_commits()]
 
         raw_prs.append(
             RawPullRequest(
@@ -92,12 +91,17 @@ def fetch_pull_requests(repo: Repository, state: str = "all") -> list[RawPullReq
                 repo_name=repo.full_name,
             )
         )
-    return raw_prs
+
+    return raw_prs, gh_prs
 
 
-def fetch_issues(repo: Repository, state: str = "all") -> list[RawIssue]:
+def fetch_issues(
+    repo: Repository,
+    state: str = "all",
+    max_count: int = 100,
+) -> list[RawIssue]:
     raw_issues = []
-    for gh_issue in repo.get_issues(state=state, sort="updated", direction="desc"):
+    for gh_issue in repo.get_issues(state=state, sort="updated", direction="desc")[:max_count]:
         if gh_issue.pull_request:
             continue
         raw_issues.append(
@@ -116,35 +120,40 @@ def fetch_issues(repo: Repository, state: str = "all") -> list[RawIssue]:
     return raw_issues
 
 
-def fetch_reviews(repo: Repository, pull_requests: list[RawPullRequest]) -> list[RawReview]:
-    gh_prs = {pr.number: pr for pr in repo.get_pulls(state="all")}
+def fetch_reviews(
+    gh_prs: list[GhPullRequest],
+    repo_name: str,
+) -> list[RawReview]:
     raw_reviews = []
-    for raw_pr in pull_requests:
-        gh_pr = gh_prs.get(raw_pr.number)
-        if not gh_pr:
-            continue
+    for gh_pr in gh_prs:
         for r in gh_pr.get_reviews():
             if not r.user:
                 continue
             raw_reviews.append(
                 RawReview(
                     id=r.id,
-                    pr_number=raw_pr.number,
+                    pr_number=gh_pr.number,
                     reviewer_login=r.user.login,
                     state=r.state,
                     body=r.body or "",
                     submitted_at=r.submitted_at,
-                    repo_name=repo.full_name,
+                    repo_name=repo_name,
                 )
             )
     return raw_reviews
 
 
-def fetch_all(repo: Repository, since: datetime | None = None) -> RawRepoData:
-    commits = fetch_commits(repo, since)
-    pull_requests = fetch_pull_requests(repo)
-    issues = fetch_issues(repo)
-    reviews = fetch_reviews(repo, pull_requests)
+def fetch_all(
+    repo: Repository,
+    since: datetime | None = None,
+    max_prs: int = 50,
+    max_commits: int = 100,
+    max_issues: int = 100,
+) -> RawRepoData:
+    commits = fetch_commits(repo, since, max_commits)
+    pull_requests, gh_prs = fetch_pull_requests(repo, max_count=max_prs)
+    issues = fetch_issues(repo, max_count=max_issues)
+    reviews = fetch_reviews(gh_prs, repo.full_name)
     return RawRepoData(
         owner=repo.owner.login,
         name=repo.name,
