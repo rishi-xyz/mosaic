@@ -158,7 +158,7 @@ def get_timeline(topic: str, limit: int = 50) -> Optional[list[TimelineEvent]]:
     with driver.session() as session:
         result = session.run(
             "MATCH (n:__Node__) "
-            "WHERE n.name CONTAINS $topic OR n.description CONTAINS $topic "
+            "WHERE (n.name CONTAINS $topic OR n.description CONTAINS $topic) "
             "AND n.created_at IS NOT NULL "
             "RETURN n "
             "ORDER BY n.created_at ASC "
