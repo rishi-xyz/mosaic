@@ -11,6 +11,9 @@ dependencies = [
     "mcp>=1.6,<2",
     "transformers>=5.13.0",
     "slack-sdk>=3.34,<4",
+    "asyncpg>=0.30,<1",
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.34,<1",
 ]
 
 [build-system]
@@ -22,3 +25,4 @@ packages = ["mosaic"]
 
 [project.scripts]
 mosaic-mcp = "mosaic.mcp.server:main"
+mosaic-mcp-http = "mosaic.mcp.http_server:main"
