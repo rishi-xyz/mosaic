@@ -8,24 +8,18 @@ import mcp.server.stdio
 import mcp.types as types
 
 from mosaic.core.config import configure_cognee
+from mosaic.core.memory.query import (
+    get_entity_by_name,
+    get_timeline,
+    get_related,
+    cross_source_query,
+)
 
 
 def _load_env():
     env_path = os.path.join(os.getcwd(), ".env")
     if os.path.exists(env_path):
         load_dotenv(env_path)
-
-
-async def _search_cognee(query: str, dataset: str = "mosaic_engineering_memory") -> str:
-    import cognee
-    from cognee.modules.search.types import SearchType
-
-    results = await cognee.search(
-        query_text=query,
-        query_type=SearchType.GRAPH_COMPLETION,
-        datasets=[dataset],
-    )
-    return str(results)
 
 
 server = Server("mosaic")
@@ -118,27 +112,27 @@ async def handle_call_tool(
 
     if name == "ask":
         query = arguments.get("query", "")
-        result = await _search_cognee(query)
+        result = await cross_source_query(query)
         return [types.TextContent(type="text", text=result)]
 
     elif name == "entity":
         entity_name = arguments.get("name", "")
-        result = await _search_cognee(f"Find everything related to {entity_name}")
+        result = await get_entity_by_name(entity_name)
         return [types.TextContent(type="text", text=result)]
 
     elif name == "timeline":
         topic = arguments.get("topic", "")
-        result = await _search_cognee(f"Show the chronological evolution of {topic}")
+        result = await get_timeline(topic)
         return [types.TextContent(type="text", text=result)]
 
     elif name == "related":
         entity_id = arguments.get("entity_id", "")
-        result = await _search_cognee(f"What is connected to {entity_id}?")
+        result = await get_related(entity_id)
         return [types.TextContent(type="text", text=result)]
 
     elif name == "pre_change_analysis":
         file_path = arguments.get("file_path", "")
-        result = await _search_cognee(
+        result = await cross_source_query(
             f"Risk assessment, owners, history, related files, and decisions for {file_path}"
         )
         return [types.TextContent(type="text", text=result)]
