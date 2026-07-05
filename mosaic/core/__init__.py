@@ -1,3 +1,3 @@
-from .config import configure_cognee
+from .config import configure_cognee, configure_graph
 
-__all__ = ["configure_cognee"]
+__all__ = ["configure_cognee", "configure_graph"]

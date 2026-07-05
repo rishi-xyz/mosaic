@@ -2,6 +2,23 @@ import os
 import cognee
 
 
+def configure_graph():
+    provider = os.environ.get("GRAPH_DATABASE_PROVIDER", "")
+
+    if provider == "neo4j" and os.environ.get("GRAPH_DATABASE_URL"):
+        from cognee.infrastructure.databases.graph import get_graph_config
+
+        graph_config = get_graph_config()
+        graph_config.graph_database_provider = "neo4j"
+        graph_config.graph_database_url = os.environ["GRAPH_DATABASE_URL"]
+        graph_config.graph_database_username = os.environ.get("GRAPH_DATABASE_USERNAME", "")
+        graph_config.graph_database_password = os.environ.get("GRAPH_DATABASE_PASSWORD", "")
+        graph_config.graph_database_name = os.environ.get("GRAPH_DATABASE_NAME", "")
+        graph_config.graph_database_allow_anonymous = (
+            os.environ.get("GRAPH_DATABASE_ALLOW_ANONYMOUS", "").lower() == "true"
+        )
+
+
 def configure_cognee():
     api_key = os.environ.get("OPENROUTER_API_KEY", "")
 
@@ -36,3 +53,5 @@ def configure_cognee():
     cognee.config.set("embedding_endpoint", embedding_endpoint)
     cognee.config.set("embedding_api_key", api_key)
     cognee.config.set("embedding_model", embedding_model)
+
+    configure_graph()
