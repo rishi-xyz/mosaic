@@ -5,10 +5,12 @@ description = "Mosaic is an MCP-native engineering memory layer that transforms 
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "cognee>=1.0,<2",
+    "cognee[baml]>=1.0,<2",
     "PyGithub>=2.6,<3",
     "python-dotenv>=1.0,<2",
     "mcp>=1.6,<2",
+    "transformers>=5.13.0",
+    "slack-sdk>=3.34,<4",
 ]
 
 [build-system]

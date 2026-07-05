@@ -136,6 +136,7 @@ def normalize_review(raw: RawReview) -> NormalizedReview:
 
 
 def normalize_entities(raw: RawRepoData) -> dict[str, list]:
+    repo_name = f"{raw.owner}/{raw.name}"
     authors: dict[str, NormalizedAuthor] = {}
     files: dict[str, NormalizedFile] = {}
     commits: list[NormalizedCommit] = []
@@ -152,17 +153,17 @@ def normalize_entities(raw: RawRepoData) -> dict[str, list]:
                 authors[raw_commit.author_login] = NormalizedAuthor(
                     source_id=_make_author_id(raw_commit.author_login),
                     title=raw_commit.author_login,
-                    repo_name=raw.repo_name,
+                    repo_name=repo_name,
                     login=raw_commit.author_login,
                 )
 
             for fpath in raw_commit.files_changed:
-                fid = _make_file_id(raw.repo_name, fpath)
+                fid = _make_file_id(repo_name, fpath)
                 if fpath not in files:
                     files[fpath] = NormalizedFile(
                         source_id=fid,
                         title=fpath,
-                        repo_name=raw.repo_name,
+                        repo_name=repo_name,
                         path=fpath,
                     )
 
@@ -170,7 +171,7 @@ def normalize_entities(raw: RawRepoData) -> dict[str, list]:
         prs.append(pr)
 
     for raw_commit in raw.commits:
-        if not any(c.source_id == _make_commit_id(raw.repo_name, raw_commit.sha) for c in commits):
+        if not any(c.source_id == _make_commit_id(repo_name, raw_commit.sha) for c in commits):
             commit = normalize_commit(raw_commit)
             commits.append(commit)
 
@@ -178,17 +179,17 @@ def normalize_entities(raw: RawRepoData) -> dict[str, list]:
                 authors[raw_commit.author_login] = NormalizedAuthor(
                     source_id=_make_author_id(raw_commit.author_login),
                     title=raw_commit.author_login,
-                    repo_name=raw.repo_name,
+                    repo_name=repo_name,
                     login=raw_commit.author_login,
                 )
 
             for fpath in raw_commit.files_changed:
-                fid = _make_file_id(raw.repo_name, fpath)
+                fid = _make_file_id(repo_name, fpath)
                 if fpath not in files:
                     files[fpath] = NormalizedFile(
                         source_id=fid,
                         title=fpath,
-                        repo_name=raw.repo_name,
+                        repo_name=repo_name,
                         path=fpath,
                     )
 
@@ -200,7 +201,7 @@ def normalize_entities(raw: RawRepoData) -> dict[str, list]:
             authors[raw_issue.author_login] = NormalizedAuthor(
                 source_id=_make_author_id(raw_issue.author_login),
                 title=raw_issue.author_login,
-                repo_name=raw.repo_name,
+                repo_name=repo_name,
                 login=raw_issue.author_login,
             )
 
@@ -218,7 +219,7 @@ def normalize_entities(raw: RawRepoData) -> dict[str, list]:
             authors[raw_review.reviewer_login] = NormalizedAuthor(
                 source_id=_make_author_id(raw_review.reviewer_login),
                 title=raw_review.reviewer_login,
-                repo_name=raw.repo_name,
+                repo_name=repo_name,
                 login=raw_review.reviewer_login,
             )
 

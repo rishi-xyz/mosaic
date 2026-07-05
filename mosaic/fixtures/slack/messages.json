@@ -1,0 +1,79 @@
+{
+  "channel": {
+    "id": "C01ABCDEFGH",
+    "name": "engineering",
+    "topic": "Engineering discussions, PR reviews, architecture decisions",
+    "members": ["U01USER1", "U02USER2", "U03USER3"]
+  },
+  "messages": [
+    {
+      "ts": "1719000000.000100",
+      "channel": "C01ABCDEFGH",
+      "channel_name": "engineering",
+      "user": "U01USER1",
+      "text": "Hey team, I just opened PR #42 for the auth rewrite. Can someone review?",
+      "thread_ts": null,
+      "replies": [],
+      "permalink": "https://example.slack.com/archives/C01ABCDEFGH/p1719000000000100"
+    },
+    {
+      "ts": "1719000100.000200",
+      "channel": "C01ABCDEFGH",
+      "channel_name": "engineering",
+      "user": "U02USER2",
+      "text": "Looks good. I left some comments on the PR. Also, this relates to issue #15 about the token refresh flow.",
+      "thread_ts": "1719000000.000100",
+      "replies": [
+        "I'll take a look at the comments, thanks!",
+        "Can we also address #18 in this PR?"
+      ],
+      "permalink": "https://example.slack.com/archives/C01ABCDEFGH/p1719000100000200"
+    },
+    {
+      "ts": "1719000200.000300",
+      "channel": "C01ABCDEFGH",
+      "channel_name": "engineering",
+      "user": "U03USER3",
+      "text": "Has anyone looked at PR-56 for the rate limiter? It closes issue #23.",
+      "thread_ts": null,
+      "replies": [],
+      "permalink": "https://example.slack.com/archives/C01ABCDEFGH/p1719000200000300"
+    },
+    {
+      "ts": "1719000300.000400",
+      "channel": "C01ABCDEFGH",
+      "channel_name": "engineering",
+      "user": "U01USER1",
+      "text": "The migration in owner/repo#214 is complete. Kafka is now handling the event stream.",
+      "thread_ts": null,
+      "replies": [
+        "Great, what was the final decision on partitioning?",
+        "We went with 12 partitions based on the load test results."
+      ],
+      "permalink": "https://example.slack.com/archives/C01ABCDEFGH/p1719000300000400"
+    },
+    {
+      "ts": "1719000400.000500",
+      "channel": "C01ABCDEFGH",
+      "channel_name": "engineering",
+      "user": "U02USER2",
+      "text": "Quick heads up: I'm about to push a change to auth.py that might affect the login flow.",
+      "thread_ts": null,
+      "replies": [],
+      "permalink": "https://example.slack.com/archives/C01ABCDEFGH/p1719000400000500"
+    },
+    {
+      "ts": "1719000500.000600",
+      "channel": "C01ABCDEFGH",
+      "channel_name": "engineering",
+      "user": "U03USER3",
+      "text": "Meeting notes: decided to go with OAuth2 for the new API. See ADR-17 for details.",
+      "thread_ts": "1719000500.000600",
+      "replies": [
+        "Can someone link the ADR?",
+        "It's in the docs/adr folder."
+      ],
+      "permalink": "https://example.slack.com/archives/C01ABCDEFGH/p1719000500000600"
+    }
+  ]
+}

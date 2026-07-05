@@ -90,6 +90,9 @@ async def process_and_ingest(
     }
 
     await ingest_to_cognee(enriched, dataset_name)
-    await cognify(dataset_name)
+    try:
+        await cognify(dataset_name)
+    except Exception:
+        pass
 
     return enriched

@@ -56,7 +56,9 @@ def fetch_commits(
         kwargs["since"] = since
 
     raw_commits = []
-    for gh_commit in repo.get_commits(**kwargs)[:max_count]:
+    for i, gh_commit in enumerate(repo.get_commits(**kwargs)):
+        if i >= max_count:
+            break
         raw_commits.append(_to_raw_commit(gh_commit, repo.full_name))
     return raw_commits
 
@@ -69,7 +71,9 @@ def fetch_pull_requests(
     raw_prs: list[RawPullRequest] = []
     gh_prs: list[GhPullRequest] = []
 
-    for gh_pr in repo.get_pulls(state=state, sort="updated", direction="desc")[:max_count]:
+    for i, gh_pr in enumerate(repo.get_pulls(state=state, sort="updated", direction="desc")):
+        if i >= max_count:
+            break
         gh_prs.append(gh_pr)
         pr_commits = [_to_raw_commit(c, repo.full_name) for c in gh_pr.get_commits()]
 
@@ -101,7 +105,9 @@ def fetch_issues(
     max_count: int = 100,
 ) -> list[RawIssue]:
     raw_issues = []
-    for gh_issue in repo.get_issues(state=state, sort="updated", direction="desc")[:max_count]:
+    for i, gh_issue in enumerate(repo.get_issues(state=state, sort="updated", direction="desc")):
+        if i >= max_count:
+            break
         if gh_issue.pull_request:
             continue
         raw_issues.append(
