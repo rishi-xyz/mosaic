@@ -8,8 +8,10 @@ from mosaic.core.normalizer.schemas import (
     NormalizedFile,
     NormalizedAuthor,
     NormalizedDecision,
+    NormalizedSlackMessage,
 )
 from mosaic.core.enricher.decisions import infer_decisions
+from mosaic.core.enricher.linker import link_slack_to_github
 from mosaic.core.enricher.ownership import infer_file_ownership
 from mosaic.core.enricher.related import infer_related_files
 
@@ -68,6 +70,7 @@ async def process_and_ingest(
     authors: list[NormalizedAuthor] = normalized.get("authors", [])
     files: list[NormalizedFile] = normalized.get("files", [])
     reviews: list[NormalizedReview] = normalized.get("reviews", [])
+    slack_messages: list[NormalizedSlackMessage] = normalized.get("slack_messages", [])
 
     decisions = infer_decisions(prs, issues)
     file_ownership = infer_file_ownership(commits)
@@ -79,6 +82,11 @@ async def process_and_ingest(
         if f.path in file_relations:
             f.metadata["related_files"] = file_relations[f.path]
 
+    # Cross-source linking: Slack ↔ GitHub
+    if slack_messages:
+        default_repo = normalized.get("_default_repo", "")
+        link_slack_to_github(slack_messages, prs, issues, default_repo=default_repo)
+
     enriched = {
         "authors": authors,
         "files": files,
@@ -87,6 +95,7 @@ async def process_and_ingest(
         "issues": issues,
         "reviews": reviews,
         "decisions": decisions,
+        "slack_messages": slack_messages,
     }
 
     await ingest_to_cognee(enriched, dataset_name)
