@@ -1,83 +1,22 @@
 import asyncio
-import os
-from dotenv import load_dotenv
 
 from mcp.server import Server, NotificationOptions
 from mcp.server.models import InitializationOptions
 import mcp.server.stdio
 import mcp.types as types
 
-from mosaic.core.config import configure_cognee
-from mosaic.core.memory.query import (
-    get_entity_by_name,
-    get_timeline,
-    get_related,
-    cross_source_query,
+from mosaic.mcp.tools import (
+    load_env,
+    configure_cognee,
+    handle_ask,
+    handle_entity,
+    handle_timeline,
+    handle_related,
+    handle_pre_change_analysis,
 )
 
 
-def _load_env():
-    env_path = os.path.join(os.getcwd(), ".env")
-    if os.path.exists(env_path):
-        load_dotenv(env_path)
-
-
 server = Server("mosaic")
-
-
-def _format_subgraph(data: dict) -> str:
-    nodes = data.get("nodes", [])
-    edges = data.get("edges", [])
-    lines = [f"Found {len(nodes)} nodes, {len(edges)} edges"]
-
-    for n in nodes:
-        label = f"[{n.get('type', '?')}] {n.get('name', n.get('id', '?'))}"
-        if n.get("description"):
-            label += f" — {n['description']}"
-        lines.append(f"  {label}")
-
-    for e in edges:
-        lines.append(
-            f"  {e['source_node_id']} -[{e['relationship_name']}]-> {e['target_node_id']}"
-        )
-
-    return "\n".join(lines)
-
-
-def _format_timeline(events: list) -> str:
-    lines = [f"Timeline: {len(events)} events"]
-    for ev in events:
-        ts = ev.get("timestamp") or "(no date)"
-        node = ev.get("node", {})
-        label = f"[{node.get('type', '?')}] {node.get('name', node.get('id', '?'))}"
-        desc = ev.get("description", "")
-        related = ev.get("related_node_ids", [])
-        extra = f" ({len(related)} related)" if related else ""
-        lines.append(f"  {ts}  {label}{extra}")
-        if desc:
-            lines.append(f"    {desc}")
-    return "\n".join(lines)
-
-
-def _format_result(result: dict) -> str:
-    fast_path = result.get("fast_path", False)
-    data = result.get("data", "")
-
-    if fast_path:
-        if isinstance(data, list):
-            if data and isinstance(data[0], dict):
-                if "timestamp" in data[0] or "node" in data[0]:
-                    return _format_timeline(data)
-                return f"Found {len(data)} results:\n" + "\n".join(
-                    f"  [{n.get('type', '?')}] {n.get('name', n.get('id', '?'))}"
-                    for n in data
-                )
-        if isinstance(data, dict):
-            if "nodes" in data:
-                return _format_subgraph(data)
-        return str(data)
-    else:
-        return str(data)
 
 
 @server.list_tools()
@@ -173,44 +112,40 @@ async def handle_list_tools() -> list[types.Tool]:
 async def handle_call_tool(
     name: str, arguments: dict | None
 ) -> list[types.TextContent]:
-    _load_env()
-    configure_cognee()
     if not arguments:
         arguments = {}
 
     if name == "ask":
         query = arguments.get("query", "")
-        result = await cross_source_query(query)
-        return [types.TextContent(type="text", text=_format_result(result))]
+        text = await handle_ask(query)
+        return [types.TextContent(type="text", text=text)]
 
     elif name == "entity":
         entity_name = arguments.get("name", "")
-        result = await get_entity_by_name(entity_name)
-        return [types.TextContent(type="text", text=_format_result(result))]
+        text = await handle_entity(entity_name)
+        return [types.TextContent(type="text", text=text)]
 
     elif name == "timeline":
         topic = arguments.get("topic", "")
-        result = await get_timeline(topic)
-        return [types.TextContent(type="text", text=_format_result(result))]
+        text = await handle_timeline(topic)
+        return [types.TextContent(type="text", text=text)]
 
     elif name == "related":
         entity_id = arguments.get("entity_id", "")
-        result = await get_related(entity_id)
-        return [types.TextContent(type="text", text=_format_result(result))]
+        text = await handle_related(entity_id)
+        return [types.TextContent(type="text", text=text)]
 
     elif name == "pre_change_analysis":
         file_path = arguments.get("file_path", "")
-        result = await cross_source_query(
-            f"Risk assessment, owners, history, related files, and decisions for {file_path}"
-        )
-        return [types.TextContent(type="text", text=_format_result(result))]
+        text = await handle_pre_change_analysis(file_path)
+        return [types.TextContent(type="text", text=text)]
 
     else:
         raise ValueError(f"Unknown tool: {name}")
 
 
 async def main():
-    _load_env()
+    load_env()
     configure_cognee()
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await server.run(
