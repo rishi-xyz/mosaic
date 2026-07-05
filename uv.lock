@@ -1351,7 +1351,6 @@ dependencies = [
     { name = "mcp" },
     { name = "pygithub" },
     { name = "python-dotenv" },
-    { name = "typer" },
 ]
 
 [package.metadata]
@@ -1360,7 +1359,6 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.6,<2" },
     { name = "pygithub", specifier = ">=2.6,<3" },
     { name = "python-dotenv", specifier = ">=1.0,<2" },
-    { name = "typer", specifier = ">=0.15,<1" },
 ]
 
 [[package]]
