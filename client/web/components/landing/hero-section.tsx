@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { AnimatedSphere } from "./animated-sphere";
+import Link from "next/link";
 
 const words = ["remember", "reason", "evolve", "learn"];
 
@@ -120,13 +121,13 @@ export function HeroSection() {
               isMounted && isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
             }`}
           >
-            <Button 
-              size="lg" 
-              className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group"
+            <Link 
+              href={"/dashboard"}
+              className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group justify-center items-center flex"
             >
               Get started
               <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
-            </Button>
+            </Link>
             <Button 
               size="lg" 
               variant="outline" 
