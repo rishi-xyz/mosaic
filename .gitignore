@@ -1,3 +1,4 @@
 discussions
 .env
 data/
+.data_storage

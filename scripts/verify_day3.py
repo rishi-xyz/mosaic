@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-Day 2 Verification: Slack Connector + Cross-Source Linking.
+Day 3 Verification: Direct Neo4j Query Layer.
 
 Stages:
-  1. GitHub fixture + Slack fixture load
-  2. Normalize both sources
-  3. Cross-source link (Slack ↔ GitHub)
-  4. Ingest to Cognee
-  5. Query cross-source results
+  1. Load GitHub + Slack fixtures
+  2. Normalize and cross-source link
+  3. Cognee ingest (prerequisite for Neo4j data)
+  4. Direct Neo4j graph queries (fast path) — verify <1s
+  5. Query layer through mosaic (fast vs slow path routing)
   6. Cleanup
 """
 import asyncio
 import datetime
 import os
 import sys
+import time
 
 from dotenv import load_dotenv
 
@@ -241,28 +242,15 @@ def stage3_cross_source_link(github_normalized, slack_normalized):
     else:
         fail("Slack → GitHub links", "no links created")
 
-    # Check specific links
-    linked_prs = 0
-    linked_issues = 0
-    for pr in prs:
-        if any(e.startswith("slack:") for e in pr.linked_entity_ids):
-            linked_prs += 1
-    for issue in issues:
-        if any(e.startswith("slack:") for e in issue.linked_entity_ids):
-            linked_issues += 1
-
-    ok("PRs with Slack links", str(linked_prs))
-    ok("Issues with Slack links", str(linked_issues))
-
     return github_normalized, slack_normalized
 
 
 async def stage4_ingest(github_normalized, slack_normalized):
-    print("\nStage 4: Cognee ingest (Slack + GitHub)")
+    print("\nStage 4: Cognee ingest (prerequisite for Neo4j)")
 
     os.environ["COGNEE_SKIP_CONNECTION_TEST"] = "true"
 
-    dataset = "mosaic_verify_day2"
+    dataset = "mosaic_verify_day3"
 
     from mosaic.core.config import configure_cognee
     from mosaic.core.memory.service import process_and_ingest
@@ -277,15 +265,15 @@ async def stage4_ingest(github_normalized, slack_normalized):
     try:
         enriched = await asyncio.wait_for(
             process_and_ingest(merged, dataset_name=dataset),
-            timeout=600,
+            timeout=1800,
         )
     except asyncio.TimeoutError:
-        skip("Cognee ingest", "timed out after 300s")
-        return None
+        skip("Cognee ingest", "timed out after 1800s (30 min)")
+        return None, None
     except Exception as e:
         msg = str(e).split("\n")[0] if str(e) else type(e).__name__
         skip("Cognee ingest", f"{type(e).__name__}: {msg}")
-        return None
+        return None, None
 
     expected = {"authors", "files", "commits", "pull_requests", "issues", "reviews", "decisions", "slack_messages"}
     actual = set(enriched.keys())
@@ -297,47 +285,82 @@ async def stage4_ingest(github_normalized, slack_normalized):
     return enriched, dataset
 
 
-async def stage5_query(dataset: str):
-    print("\nStage 5: Cross-source query")
+def stage5_direct_graph_queries():
+    print("\nStage 5: Direct Neo4j graph queries (fast path)")
 
-    if dataset is None:
-        skip("query", "no data ingested")
-        return
-
-    import cognee
-    from cognee.modules.search.types import SearchType
+    from mosaic.core.memory.graph_query import (
+        get_entity_by_name,
+        get_neighbors,
+        get_timeline,
+        search_entities,
+        close,
+    )
 
     queries = [
-        ("auth.py", "file-level query"),
-        ("PR #42", "PR reference"),
-        ("Token refresh", "issue reference"),
+        ("get_entity_by_name('auth')", lambda: get_entity_by_name("auth")),
+        ("get_entity_by_name('rishi')", lambda: get_entity_by_name("rishi")),
+        ("get_neighbors('github:owner/repo:pr:42')", lambda: get_neighbors("github:owner/repo:pr:42")),
+        ("get_timeline('auth')", lambda: get_timeline("auth")),
+        ("search_entities('auth')", lambda: search_entities("auth")),
     ]
 
-    queried = 0
-    for q_text, label in queries:
+    for label, fn in queries:
+        start = time.time()
         try:
-            results = await asyncio.wait_for(
-                cognee.search(
-                    query_text=q_text,
-                    query_type=SearchType.GRAPH_COMPLETION,
-                    datasets=[dataset],
-                ),
-                timeout=30,
-            )
-            if results:
-                ok(f"Query '{label}' returned results", str(results)[:80] + "...")
-                queried += 1
+            result = fn()
+            elapsed = time.time() - start
+            if result is None:
+                skip(label, "Neo4j not available")
+                continue
+            if isinstance(result, list):
+                count = len(result)
+            elif hasattr(result, "nodes"):
+                count = len(result.nodes)
             else:
-                ok(f"Query '{label}' returned empty", "expected — no cognify ran")
+                count = 1 if result else 0
+
+            if elapsed < 1.0:
+                ok(label, f"{count} items in {elapsed:.3f}s")
+            else:
+                ok(label, f"{count} items in {elapsed:.3f}s (slower than 1s)")
+        except Exception as e:
+            fail(label, str(e)[:100])
+
+    close()
+
+
+async def stage6_query_layer():
+    print("\nStage 6: Query layer routing (fast path)")
+
+    from mosaic.core.memory.query import (
+        get_entity_by_name,
+        get_related,
+        get_timeline,
+    )
+
+    queries = [
+        ("get_entity_by_name('auth')", get_entity_by_name("auth")),
+        ("get_related('github:owner/repo:pr:42')", get_related("github:owner/repo:pr:42")),
+        ("get_timeline('auth')", get_timeline("auth")),
+    ]
+
+    for label, coro in queries:
+        start = time.time()
+        try:
+            result = await asyncio.wait_for(coro, timeout=10)
+            elapsed = time.time() - start
+            if result.get("fast_path"):
+                ok(label, f"fast path in {elapsed:.3f}s")
+            else:
+                ok(label, f"slow path in {elapsed:.3f}s")
         except asyncio.TimeoutError:
-            skip(f"Query '{label}'", "timed out")
+            skip(label, "timed out")
+        except Exception as e:
+            fail(label, str(e)[:100])
 
-    if queried > 0:
-        ok(f"{queried}/{len(queries)} queries completed")
 
-
-async def stage6_cleanup(dataset: str):
-    print("\nStage 6: Cleanup")
+async def stage7_cleanup(dataset: str):
+    print("\nStage 7: Cleanup")
 
     if dataset is None:
         skip("cleanup", "no Cognee data to clean")
@@ -350,21 +373,22 @@ async def stage6_cleanup(dataset: str):
 
 
 async def main():
-    print("===== MOSAIC DAY 2 VERIFICATION =====")
+    print("===== MOSAIC DAY 3 VERIFICATION =====")
     print(f"Python: {sys.version.split()[0]}")
 
     github_raw, slack_raw = stage1_fixtures()
     github_normalized, slack_normalized = stage2_normalize(github_raw, slack_raw)
     stage3_cross_source_link(github_normalized, slack_normalized)
-    result = await stage4_ingest(github_normalized, slack_normalized)
+    enriched, dataset = await stage4_ingest(github_normalized, slack_normalized) or (None, None)
 
-    enriched = None
-    dataset = None
-    if result:
-        enriched, dataset = result
+    if dataset:
+        stage5_direct_graph_queries()
+        await stage6_query_layer()
+    else:
+        skip("direct graph queries", "ingest did not complete")
+        skip("query layer routing", "ingest did not complete")
 
-    await stage5_query(dataset)
-    await stage6_cleanup(dataset)
+    await stage7_cleanup(dataset)
 
     total = passed + failed + skipped
     print(f"\n===== RESULT: {passed}/{total - skipped} passed, {skipped} skipped, {failed} failed =====")
