@@ -155,3 +155,23 @@ class NormalizedDecision:
     pr_number: int = 0
     issue_number: int = 0
     description: str = ""
+
+
+@dataclass
+class NormalizedSlackMessage:
+    entity_type: EntityType = EntityType.SLACK_MESSAGE
+    source: Source = Source.SLACK
+    source_id: str = ""
+    title: str = ""
+    body: str = ""
+    created_at: datetime | None = None
+    author_id: str = ""
+    repo_name: str = ""
+    metadata: dict = field(default_factory=dict)
+    linked_entity_ids: list[str] = field(default_factory=list)
+    channel: str = ""
+    channel_name: str = ""
+    thread_ts: str = ""
+    is_thread_reply: bool = False
+    replies: list[str] = field(default_factory=list)
+    permalink: str = ""
