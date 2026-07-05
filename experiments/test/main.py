@@ -3,7 +3,9 @@ import os
 import cognee
 from cognee.modules.search.types import SearchType
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "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")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+if not OPENROUTER_API_KEY:
+    raise ValueError("OPENROUTER_API_KEY not set in environment")
 
 async def test_cognee():
     cognee.config.set("llm_provider", "custom") 
