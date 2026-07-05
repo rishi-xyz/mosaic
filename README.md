@@ -24,6 +24,60 @@ Just as Linux is an operating system, Kubernetes manages containers, and Git man
 
 ---
 
+## Quick Start
+
+### Prerequisites
+
+1. **Docker** - Running PostgreSQL and Neo4j containers
+2. **Python 3.14+** - With uv or pip
+3. **Ollama** (optional) - For local LLM support
+
+### One-Line Demo
+
+```bash
+./scripts/demo.sh
+```
+
+This launches an interactive menu to:
+- ✓ Start the MCP server
+- ✓ Check system status
+- ✓ Run tests
+- ✓ Ingest GitHub data
+- ✓ Query the memory graph
+
+### Manual Setup
+
+```bash
+# 1. Start databases
+docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
+docker run -d --name neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/strongPassword123 neo4j
+
+# 2. Start the demo
+./scripts/start_demo.sh
+
+# 3. Check status
+./scripts/status_demo.sh
+
+# 4. Test the API
+curl http://localhost:8001/health
+
+# 5. View in browser
+open http://localhost:8001/docs  # API documentation
+open http://localhost:7474       # Neo4j graph browser
+```
+
+### Available Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/demo.sh` | Interactive demo controller |
+| `scripts/start_demo.sh` | Start MCP server |
+| `scripts/stop_demo.sh` | Stop all services |
+| `scripts/status_demo.sh` | Check system status |
+| `scripts/test_demo.sh` | Run API tests |
+
+---
+
 ## Architecture
 
 ```

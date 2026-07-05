@@ -13,8 +13,9 @@ COPY pyproject.toml uv.lock ./
 # Install uv package manager
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Add uv to PATH
-ENV PATH="/root/.cargo/bin:$PATH"
+# Add uv to PATH (current uv installer puts the binary in ~/.local/bin,
+# not ~/.cargo/bin — that was only true prior to uv 0.5.0)
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install Python dependencies
 RUN uv sync --frozen
@@ -23,11 +24,14 @@ RUN uv sync --frozen
 COPY mosaic ./mosaic
 
 # Expose MCP server port
+# NOTE: Render injects a PORT env var (default 10000) and expects your
+# server to bind to it. Set PORT=8001 (and MCP_PORT=8001 if your app reads
+# that instead) in the Render dashboard so this matches.
 EXPOSE 8001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:8001/health || exit 1
+  CMD curl -f http://localhost:8001/health || exit 1
 
 # Start MCP server
 CMD [".venv/bin/mosaic-mcp-http"]
