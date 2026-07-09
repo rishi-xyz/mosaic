@@ -7,12 +7,14 @@ from mcp.server.fastmcp import FastMCP
 
 from mosaic.core.config import configure_cognee
 from mosaic.mcp.tools import (
+    TOOL_DEFINITIONS,
     load_env,
     handle_ask,
     handle_entity,
     handle_timeline,
     handle_related,
     handle_pre_change_analysis,
+    handle_github_ingest,
 )
 
 # Per-request user config for multi-tenant support
@@ -93,39 +95,57 @@ def _convert_config_to_env(config: dict) -> dict:
 mcp = FastMCP("mosaic")
 
 
-@mcp.tool(description="General reasoning over engineering memory. Ask about decisions, architecture, history.")
-async def ask(query: str) -> str:
+@mcp.tool(description=TOOL_DEFINITIONS["memory_query"]["description"])
+async def memory_query(query: str) -> str:
     user_config = current_user_config.get()
     env_config = _convert_config_to_env(user_config)
     return await handle_ask(query, config=env_config)
 
 
-@mcp.tool(description="Get everything related to a file, person, or concept in the engineering memory.")
-async def entity(name: str) -> str:
+@mcp.tool(description=TOOL_DEFINITIONS["memory_entity_get"]["description"])
+async def memory_entity_get(name: str) -> str:
     user_config = current_user_config.get()
     env_config = _convert_config_to_env(user_config)
     return await handle_entity(name, config=env_config)
 
 
-@mcp.tool(description="Chronological evolution of a topic, file, or feature.")
-async def timeline(topic: str, limit: int = 50) -> str:
+@mcp.tool(description=TOOL_DEFINITIONS["memory_timeline"]["description"])
+async def memory_timeline(topic: str, limit: int = 50) -> str:
     user_config = current_user_config.get()
     env_config = _convert_config_to_env(user_config)
     return await handle_timeline(topic, limit, config=env_config)
 
 
-@mcp.tool(description="Find the connected graph around an entity — linked PRs, issues, decisions, files.")
-async def related(entity_id: str, depth: int = 1) -> str:
+@mcp.tool(description=TOOL_DEFINITIONS["memory_related_get"]["description"])
+async def memory_related_get(entity_id: str, depth: int = 1) -> str:
     user_config = current_user_config.get()
     env_config = _convert_config_to_env(user_config)
     return await handle_related(entity_id, depth, config=env_config)
 
 
-@mcp.tool(description="Analyze risk, owners, history, and related files before making a change.")
-async def pre_change_analysis(file_path: str) -> str:
+@mcp.tool(description=TOOL_DEFINITIONS["analysis_pre_change"]["description"])
+async def analysis_pre_change(file_path: str) -> str:
     user_config = current_user_config.get()
     env_config = _convert_config_to_env(user_config)
     return await handle_pre_change_analysis(file_path, config=env_config)
+
+
+@mcp.tool(description=TOOL_DEFINITIONS["github_ingest"]["description"])
+async def github_ingest(
+    repo: str = "",
+    max_issues: int = 100,
+    max_prs: int = 50,
+    max_commits: int = 100,
+) -> str:
+    user_config = current_user_config.get()
+    env_config = _convert_config_to_env(user_config)
+    return await handle_github_ingest(
+        repo=repo,
+        max_issues=max_issues,
+        max_prs=max_prs,
+        max_commits=max_commits,
+        config=env_config,
+    )
 
 
 def create_app() -> FastAPI:
@@ -179,6 +199,52 @@ def create_app() -> FastAPI:
     @app.get("/health")
     async def health():
         return {"status": "ok", "server": "mosaic-mcp"}
+
+    # ── MCP discovery endpoints ───────────────────────────────────────
+    _port = os.environ.get("MCP_PORT", "8001")
+    _host = os.environ.get("MCP_HOST", f"http://localhost:{_port}")
+    _auth_required = bool(os.environ.get("MCP_API_KEY")) or not os.environ.get("MCP_DISABLE_AUTH", "").lower() == "true"
+
+    @app.get("/.well-known/mcp.json")
+    async def mcp_server_card():
+        return {
+            "protocolVersion": "2025-11-25",
+            "serverInfo": {
+                "name": "mosaic",
+                "version": "0.1.0",
+            },
+            "transport": {
+                "type": "sse",
+                "endpoint": f"{_host}/mcp/sse",
+            },
+            "capabilities": {
+                "tools": True,
+                "resources": False,
+                "prompts": False,
+            },
+            "authentication": {
+                "required": _auth_required,
+            },
+        }
+
+    @app.get("/.well-known/mcp-server")
+    async def mcp_server_manifest():
+        return {
+            "mcp_version": "2025-06-18",
+            "name": "mosaic",
+            "version": "0.1.0",
+            "endpoint": f"{_host}/mcp/sse",
+            "transport": "sse",
+            "capabilities": {
+                "tools": True,
+                "resources": False,
+                "prompts": False,
+            },
+            "authentication": {
+                "scheme": "bearer",
+                "required": _auth_required,
+            },
+        }
 
     return app
 

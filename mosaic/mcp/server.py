@@ -6,6 +6,7 @@ import mcp.server.stdio
 import mcp.types as types
 
 from mosaic.mcp.tools import (
+    TOOL_DEFINITIONS,
     load_env,
     configure_cognee,
     handle_ask,
@@ -13,6 +14,7 @@ from mosaic.mcp.tools import (
     handle_timeline,
     handle_related,
     handle_pre_change_analysis,
+    handle_github_ingest,
 )
 
 
@@ -23,89 +25,22 @@ server = Server("mosaic")
 async def handle_list_tools() -> list[types.Tool]:
     return [
         types.Tool(
-            name="ask",
-            description="General reasoning over engineering memory. Ask about decisions, architecture, history.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "Question about the codebase or engineering decisions",
-                    },
-                },
-                "required": ["query"],
-            },
-        ),
-        types.Tool(
-            name="entity",
-            description="Get everything related to a file, person, or concept in the engineering memory.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string",
-                        "description": "File path, person login, or concept name",
-                    },
-                    "source": {
-                        "type": "string",
-                        "description": "Filter by source (github, slack, or empty for all)",
-                        "enum": ["", "github", "slack"],
-                    },
-                },
-                "required": ["name"],
-            },
-        ),
-        types.Tool(
-            name="timeline",
-            description="Chronological evolution of a topic, file, or feature.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "topic": {
-                        "type": "string",
-                        "description": "Topic, file, or feature to trace",
-                    },
-                    "limit": {
-                        "type": "number",
-                        "description": "Maximum results to return (default 50)",
-                    },
-                },
-                "required": ["topic"],
-            },
-        ),
-        types.Tool(
-            name="related",
-            description="Find the connected graph around an entity — linked PRs, issues, decisions, files.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "entity_id": {
-                        "type": "string",
-                        "description": "Entity ID or name to expand around",
-                    },
-                    "depth": {
-                        "type": "number",
-                        "description": "How many hops deep to traverse (default 1)",
-                    },
-                },
-                "required": ["entity_id"],
-            },
-        ),
-        types.Tool(
-            name="pre_change_analysis",
-            description="Analyze risk, owners, history, and related files before making a change.",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "file_path": {
-                        "type": "string",
-                        "description": "Path of the file about to be changed",
-                    },
-                },
-                "required": ["file_path"],
-            },
-        ),
+            name=name,
+            description=spec["description"],
+            inputSchema=spec["input_schema"],
+        )
+        for name, spec in TOOL_DEFINITIONS.items()
     ]
+
+
+_TOOL_HANDLERS = {
+    "memory_query": handle_ask,
+    "memory_entity_get": handle_entity,
+    "memory_timeline": handle_timeline,
+    "memory_related_get": handle_related,
+    "analysis_pre_change": handle_pre_change_analysis,
+    "github_ingest": handle_github_ingest,
+}
 
 
 @server.call_tool()
@@ -115,33 +50,12 @@ async def handle_call_tool(
     if not arguments:
         arguments = {}
 
-    if name == "ask":
-        query = arguments.get("query", "")
-        text = await handle_ask(query)
-        return [types.TextContent(type="text", text=text)]
-
-    elif name == "entity":
-        entity_name = arguments.get("name", "")
-        text = await handle_entity(entity_name)
-        return [types.TextContent(type="text", text=text)]
-
-    elif name == "timeline":
-        topic = arguments.get("topic", "")
-        text = await handle_timeline(topic)
-        return [types.TextContent(type="text", text=text)]
-
-    elif name == "related":
-        entity_id = arguments.get("entity_id", "")
-        text = await handle_related(entity_id)
-        return [types.TextContent(type="text", text=text)]
-
-    elif name == "pre_change_analysis":
-        file_path = arguments.get("file_path", "")
-        text = await handle_pre_change_analysis(file_path)
-        return [types.TextContent(type="text", text=text)]
-
-    else:
+    handler = _TOOL_HANDLERS.get(name)
+    if not handler:
         raise ValueError(f"Unknown tool: {name}")
+
+    text = await handler(**arguments)
+    return [types.TextContent(type="text", text=text)]
 
 
 async def main():
